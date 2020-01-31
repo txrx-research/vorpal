@@ -1,17 +1,18 @@
 from enum import Enum
 import random
+import yaml
 
 # configuration
 SHARD_COUNT = 64;
 
-# data types
+# transaction types
 class TransactionFragmentType(Enum):
-	TO_EOA = 1
-	TO_CONTRACT = 2
-	TO_SHARD = 3
-	CONTRACT_DEPLOY = 4
-	CONTRACT_WRITE = 5
-	CONTRACT_TO_CONTRACT = 6
+	PAYMENT_TO_EOA = 1
+	PAYMENT_TO_SHARD = 2
+	PAYMENT_TO_CONTRACT = 3
+	CONTRACT_CALL = 4
+	CONTRACT_DEPLOY = 5
+	EE_DEPLOY = 6
 
 class TransactionFragment:	
 	def __init__(self, is_foreign_shard, type):

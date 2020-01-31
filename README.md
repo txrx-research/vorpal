@@ -1,6 +1,7 @@
 # Cross Shard Simulation for Ethereum 2.0
 
 In this simulation we will model the execution of cross shard transactions the Ethereum 2.0 platform using varying sharding strategies.
+The goal of this research is to take Eth1 transactions and execute them within the context of a cross-shard transaction.
 
 ### Factors to be considered:
 	- Duration of cross shard communication
@@ -20,8 +21,8 @@ A problem in simulating cross-shard transactions is the cross contract calls. In
 
 ```
 {
-	from: 20 byte address,
-	to: 20 byte address,
+	from: 20 bytes (address),
+	to: 20 bytes (address),
 	value: wei,
 	input: bytecode,
 	gas:
@@ -31,8 +32,28 @@ A problem in simulating cross-shard transactions is the cross contract calls. In
 
 The discontinuity of cross-shard transactions requires a new format to allow the simulation to orchestrate a pause and resume within a single transaction. The following structure will allow such an interaction:
 
+`TransactionFragmentType`s are a case generalization of transaction executions that may results in a cross-shard call 
 ```
-{
+class TransactionFragmentType(Enum):
+	PAYMENT_TO_EOA = 1
+	PAYMENT_TO_SHARD = 2
+	PAYMENT_TO_CONTRACT = 3
+	CONTRACT_CALL = 4
+	CONTRACT_DEPLOY = 5
+	EE_DEPLOY = 6
+```
 
-}
+`Transaction` list is a construction that links individual `TransactionFragment`s together to form a construction that allows for interpretting individual 
 ```
+[
+	{
+		transaction_fragment_type: TransactionFragmentType
+		is_foreign_shard: bool
+	},
+	...
+]
+```
+Eth1 transaction will be parsed into a runtime construction that is seen above. The construction will then be passed into the simulation to extract the execution data described earlier.
+
+### Instances of cross-shard transaction calls
+By Eth1 synchronous design there several instances that could necessitate a cross-shard transaction call. In the synchronous nature of Eth1 the block producer can mutate all state within the confines of a transactions inclusion in a block construction. In Eth2 this capability will be lost in cross-shard transactions. In a single contract method there could be multiple calls to mutate state on a foreign shard.
