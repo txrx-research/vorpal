@@ -1,9 +1,33 @@
 from enum import Enum
 import random
-import yaml
 
-# configuration
-SHARD_COUNT = 64;
+import threading
+import time
+import shard
+import logging
+import queue
+
+format = "%(asctime)s: %(message)s"
+logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
+
+# configuration timing
+SHARD_COUNT = 64
+SLOT_TIME = 6.000 # seconds 
+global_time_offset = 3000 # milliseconds
+MEMPOOL_PROP_MIN = 10 # milliseconds
+MEMPOOL_PROP_MAX = 5000 # milliseconds
+
+# configuration gas costs
+RECEIPT_GAS_COST = 5000
+
+class Mempool(list):
+
+	def toString(self):
+		string = "+++++ Begin Mempool +++++\n"
+		for transaction in self:
+			string = string + transaction.toString() + "\n"
+		string = string + "+++++  End Mempool  +++++\n"
+		return string
 
 # transaction types
 class TransactionFragmentType(Enum):
@@ -15,55 +39,55 @@ class TransactionFragmentType(Enum):
 	EE_DEPLOY = 6
 
 class TransactionFragment:	
-	def __init__(self, is_foreign_shard, type):
-		self.is_foreign_shard = is_foreign_shard
+	def __init__(self, shard, type):
+		self.shard = shard
 		self.type = type
 
-class ReportFragment:
-	gas_cost = None
-	#milliseconds
-	time = None
+class Transaction(list):
+	def __init__(self, id):
+		self.id = id
+	
+	def toString(self):
+		string = ""
+		string = string + "Transaction Id: {0}\n".format(transaction.id)
+		for i in range(len(self)):
+			transactionFragment = transaction[i]
+			string = string + "Shard: {0} Action: {1}".format(transactionFragment.shard, transactionFragment.type)
+			if i != len(self) - 1:
+				string = string + "\n"
+		return string
+
 
 def generateRandomTransaction(size):
-	transaction = list()
+	transaction = Transaction("0x500")
 	for i in range(size):
-		isForeign = random.choice([True, False])
 		txnFragmentType =  random.choice([1, 2, 3, 4])
-		txnFragment = TransactionFragment(isForeign, TransactionFragmentType(txnFragmentType))
+		shard =  random.randrange(0, SHARD_COUNT, 1)
+		txnFragment = TransactionFragment(shard, TransactionFragmentType(txnFragmentType))
 		transaction.append(txnFragment)
 	return transaction
 
-def simulation(transaction, strategy):
-	report = list();
-	# mempool time
-	for txnFragment in transaction:
-		orchReportFragment = orchcestrationTiming(txnFragment, ReportFragment());
-		reportFragment = strategy(txnFragment, ReportFragment())
-		report.append(reportFragment)
-	return report
+beaconChain = list()
 
-def receipt(transactionFragment, reportFragment):
-	# orchestration timing
-	if(transactionFragment.is_foreign_shard){
+def onNewShardBlock(shard, block):
+	if(len(beaconChain) <= block.index):
+		for i in range((block.index + 1) - len(beaconChain)):
+			beaconChain.append(list([None] * SHARD_COUNT))
+	beaconChain[block.index].insert(shard, block)
 
-	}
-	# execution timing
-	if(txnFragment.type == TransactionFragment.PAYMENT_TO_ACCOUNT):
+mempool = Mempool()
+transaction = generateRandomTransaction(6)
+print(transaction.toString())
+mempool.append(transaction)
 
-	else if(txnFragment.type == TransactionFragment.PAYMENT_TO_SHARD):
+shards = list()
+for i in range (SHARD_COUNT):
+	_shard = shard.Shard(i, None, onNewShardBlock, beaconChain, mempool)
+	shards.append(_shard)
 
-	else if(txnFragment.type == TransactionFragment.PAYMENT_TO_SHARD):
-
-	else if(txnFragment.type == TransactionFragment.PAYMENT_TO_SHARD):
-
-	return reportFragment;
-# application
-
-# txnFragment = TransactionFragment(type(False), TransactionFragmentType.PAYMENT_TO_ACCOUNT)
-
-# print(txnFragment.type)
-
-transaction = generateRandomTransaction(5);
-print(transaction[2].type)
-
-	
+while(True):
+	for _shard in shards:
+		_shard.produceShardBlock()
+	for _shard in shards:
+		_shard.commitShardBlock()
+	time.sleep(SLOT_TIME)

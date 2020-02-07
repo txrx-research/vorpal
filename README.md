@@ -57,3 +57,10 @@ Eth1 transaction will be parsed into a runtime construction that is seen above. 
 
 ### Instances of cross-shard transaction calls
 By Eth1 synchronous design there several instances that could necessitate a cross-shard transaction call. In the synchronous nature of Eth1 the block producer can mutate all state within the confines of a transactions inclusion in a block construction. In Eth2 this capability will be lost in cross-shard transactions. In a single contract method there could be multiple calls to mutate state on a foreign shard.
+
+### Simulation elements considered
+1. Global slot timing
+	- Transactions in mempool between slots have a coordination delay. Transactions will not execute until `(global_time % SLOT_TIME) + SLOT_TIME`
+2. Mempool propagation delay
+	- Transactions in mempool are delayed on a basis of propagation timing. Throughput of mempool is currently not available, mempool throughput will be approximated for research purposes
+3. 
