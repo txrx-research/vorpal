@@ -44,12 +44,12 @@ class TransactionFragment:
 		self.type = type
 
 class Transaction(list):
-	def __init__(self, id):
-		self.id = id
-	
+	def __init__(self):
+		pass
+
 	def toString(self):
 		string = ""
-		string = string + "Transaction Id: {0}\n".format(transaction.id)
+		string = string + "Transaction Id: {0}\n".format(id(self))
 		for i in range(len(self)):
 			transactionFragment = transaction[i]
 			string = string + "Shard: {0} Action: {1}".format(transactionFragment.shard, transactionFragment.type)
@@ -59,9 +59,9 @@ class Transaction(list):
 
 
 def generateRandomTransaction(size):
-	transaction = Transaction("0x500")
+	transaction = Transaction()
 	for i in range(size):
-		txnFragmentType =  random.choice([1, 2, 3, 4])
+		txnFragmentType =  random.choice([1, 2, 3, 4, 5, 6])
 		shard =  random.randrange(0, SHARD_COUNT, 1)
 		txnFragment = TransactionFragment(shard, TransactionFragmentType(txnFragmentType))
 		transaction.append(txnFragment)
@@ -77,7 +77,6 @@ def onNewShardBlock(shard, block):
 
 mempool = Mempool()
 transaction = generateRandomTransaction(6)
-print(transaction.toString())
 mempool.append(transaction)
 
 shards = list()
@@ -86,8 +85,10 @@ for i in range (SHARD_COUNT):
 	shards.append(_shard)
 
 while(True):
+	logging.info(mempool.toString())
 	for _shard in shards:
 		_shard.produceShardBlock()
 	for _shard in shards:
 		_shard.commitShardBlock()
+	logging.info("Beacon Block: %s", len(beaconChain) - 1)
 	time.sleep(SLOT_TIME)

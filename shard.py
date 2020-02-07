@@ -31,20 +31,20 @@ class Shard:
         for i in range(foreignReceipt.sequence, len(transaction)):
             transactionFragment = transaction[i]
             if transactionFragment.shard != self.shard:
-                self.nextBlock.append(Receipt(transaction.id, self.shard,  i, transactionFragment.shard))
+                self.nextBlock.append(Receipt(id(transaction), self.shard,  i, transactionFragment.shard))
                 return False
             if i == len(transaction) - 1:
-                self.nextBlock.append(Receipt(transaction.id, self.shard,  i, None))
+                self.nextBlock.append(Receipt(id(transaction), self.shard,  i, None))
                 return True
 
     def processTransaction(self, transaction):
         for i in range(len(transaction)):
             transactionFragment = transaction[i]
             if transactionFragment.shard != self.shard:
-                self.nextBlock.append(Receipt(transaction.id, self.shard, i, transactionFragment.shard))
+                self.nextBlock.append(Receipt(id(transaction), self.shard, i, transactionFragment.shard))
                 return False
             if i == len(transaction) - 1:
-                self.nextBlock.append(Receipt(transaction.id, self.shard, i, None))
+                self.nextBlock.append(Receipt(id(transaction), self.shard, i, None))
                 return True
     
     def processMempoolTransactions(self):
@@ -60,7 +60,7 @@ class Shard:
                     for receipt in shardBlock:
                         if receipt.nextShard == self.shard:
                             for transaction in self.mempool:
-                                if transaction.id == receipt.transactionId:
+                                if id(transaction)== receipt.transactionId:
                                     if self.processTransactionFromForeignReceipt(receipt, transaction):
                                         self.mempool.remove(transaction)
                                     break
@@ -69,9 +69,6 @@ class Shard:
         self.nextBlock = Block(self.nextBlock.index + 1)
 
     def produceShardBlock(self):
-        # for block in self.beaconChain:
-        #     logging.info("Element: %s", block)
-        print(self.mempool.toString())
         self.processMempoolTransactions()
         self.processReceiptTransactions()
 
