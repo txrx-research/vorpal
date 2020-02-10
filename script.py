@@ -51,7 +51,7 @@ class Transaction(list):
 		string = ""
 		string = string + "Transaction Id: {0}\n".format(id(self))
 		for i in range(len(self)):
-			transactionFragment = transaction[i]
+			transactionFragment = self[i]
 			string = string + "Shard: {0} Action: {1}".format(transactionFragment.shard, transactionFragment.type)
 			if i != len(self) - 1:
 				string = string + "\n"
@@ -67,28 +67,68 @@ def generateRandomTransaction(size):
 		transaction.append(txnFragment)
 	return transaction
 
+def isTransactionComplete(transaction, receipts):
+	return receipts[len(receipts) - 1].nextShard == None
+
+class TransactionLog(list):
+	def __init__(self, transaction):
+		self.transaction = transaction
+
+def logTransaction(transaction, beaconChain, transactionLogs):
+	log = transactionLogs.get(id(transaction))
+	if log == None:
+		log = TransactionLog(transaction)
+	for i in range(transactionLogs.get("lastBlock"), len(beaconChain)):
+		beaconBlock = beaconChain[i]
+		for shardBlock in beaconBlock:
+			if shardBlock != None:
+				for receipt in shardBlock:
+					if receipt.transactionId == id(transaction):
+						log.append(receipt)
+	transactionLogs[id(transaction)] = log
+	transactionLogs["lastBlock"] = len(beaconChain)
+		
+
 beaconChain = list()
+
+def outputTransactionLog(transactionLogs, transactionsToLog):
+	string = ""
+	for transaction in transactionsToLog:
+		log = transactionLogs[(id(transaction))]
+		if log != None:
+			for receipt in log:
+				string = string + receipt.toString()
+	return string
+
 
 def onNewShardBlock(shard, block):
 	if(len(beaconChain) <= block.index):
 		for i in range((block.index + 1) - len(beaconChain)):
 			beaconChain.append(list([None] * SHARD_COUNT))
-	beaconChain[block.index].insert(shard, block)
+	beaconChain[block.index][shard] = block
 
 mempool = Mempool()
-transaction = generateRandomTransaction(6)
-mempool.append(transaction)
+randomTransaction = generateRandomTransaction(6)
+mempool.append(randomTransaction)
+transactionsToLog = list()
+transactionsToLog.append(randomTransaction)
+
+transactionLogs = {}
+transactionLogs["lastBlock"] = 0
 
 shards = list()
 for i in range (SHARD_COUNT):
 	_shard = shard.Shard(i, None, onNewShardBlock, beaconChain, mempool)
 	shards.append(_shard)
 
-while(True):
-	logging.info(mempool.toString())
+while(len(mempool) > 0):
+	# logging.info(mempool.toString())
 	for _shard in shards:
 		_shard.produceShardBlock()
 	for _shard in shards:
 		_shard.commitShardBlock()
-	logging.info("Beacon Block: %s", len(beaconChain) - 1)
-	time.sleep(SLOT_TIME)
+	# logging.info("Beacon Block: %s", len(beaconChain) - 1)
+	for transaction in transactionsToLog:
+		logTransaction(transaction, beaconChain, transactionLogs)
+logging.info(outputTransactionLog(transactionLogs, transactionsToLog))
+	

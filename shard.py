@@ -1,10 +1,12 @@
 import logging
 import time
 
+RECEIPT_LIMIT = 30
+
 format = "%(asctime)s: %(message)s"
 logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
 
-class Block(list):
+class ShardBlock(list):
     def __init__(self, index):
         self.index = index
 
@@ -16,7 +18,7 @@ class Receipt:
         self.nextShard = nextShard
     
     def toString(self):
-        return "Receipt Transaction Id: {0}\n Shard: {1}\n Sequence: {2}\n NextShard: {3}".format(self.transactionId, self.shard, self.sequence, self.nextShard)
+        return "*** Receipt ***\nTransaction Id: {0}\nShard: {1}\nSequence: {2}\nNextShard: {3}\n".format(self.transactionId, self.shard, self.sequence, self.nextShard)
 
 class Shard:	
     def __init__(self, shard, strategy, onNewShardBlock, beaconChain, mempool):
@@ -25,7 +27,9 @@ class Shard:
         self.onNewShardBlock = onNewShardBlock
         self.beaconChain = beaconChain
         self.mempool = mempool
-    nextBlock = Block(0)
+        self.nextBlock = ShardBlock(0)
+        self.hasProcessedTransaction = list()
+        self.hasProcessedReceipt = list()
 
     def processTransactionFromForeignReceipt(self, foreignReceipt, transaction):
         for i in range(foreignReceipt.sequence, len(transaction)):
@@ -49,7 +53,8 @@ class Shard:
     
     def processMempoolTransactions(self):
         for transaction in self.mempool:
-            if transaction[0].shard == self.shard:
+            if transaction[0].shard == self.shard and transaction not in self.hasProcessedTransaction:
+                self.hasProcessedTransaction.append(transaction)
                 if self.processTransaction(transaction):
                     self.mempool.remove(transaction)
 
@@ -60,15 +65,17 @@ class Shard:
                     for receipt in shardBlock:
                         if receipt.nextShard == self.shard:
                             for transaction in self.mempool:
-                                if id(transaction)== receipt.transactionId:
+                                if id(transaction) == receipt.transactionId and receipt not in self.hasProcessedReceipt:
+                                    self.hasProcessedReceipt.append(receipt)
                                     if self.processTransactionFromForeignReceipt(receipt, transaction):
                                         self.mempool.remove(transaction)
                                     break
     def commitShardBlock(self):
         self.onNewShardBlock(self.shard, self.nextBlock)
-        self.nextBlock = Block(self.nextBlock.index + 1)
+        self.nextBlock = ShardBlock(self.nextBlock.index + 1)
 
     def produceShardBlock(self):
-        self.processMempoolTransactions()
         self.processReceiptTransactions()
+        self.processMempoolTransactions()
+        
 
