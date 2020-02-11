@@ -7,9 +7,34 @@ import shard
 import logging
 import queue
 import constants
+import argparse
 
 format = "%(asctime)s: %(message)s"
 logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
+
+class DistributionType(Enum):
+	UNIFORM = 0
+	BINOMIAL = 1
+	NORMAL = 2
+	CHAOS = 3
+
+	def getType(string):
+		if(string.lower() == "uniform"): return DistributionType(0)
+		if(string.lower() == "binomial"): return DistributionType(1)
+		if(string.lower() == "normal"): return DistributionType(2)
+		if(string.lower() == "chaos"): return DistributionType(3)
+
+parser = argparse.ArgumentParser(description='Ethereum 2.0 Coss-Shard Simulation Commands')
+parser.add_argument('--shards', type=int, default=64, help="shards to simulate")
+parser.add_argument('--txns', type=int, default=100, help="number of transactions to simulate")
+parser.add_argument('--slot', type=int, default=6000, help="milliseconds per slot")
+parser.add_argument('--time', type=int, default=-1, help="length of time for the simulation to run (milliseconds). -1 means indefinite execution")
+parser.add_argument('--receipts', type=int, default=30, help="receipt limit per shard block")
+parser.add_argument('--dist', type=DistributionType.getType, default=DistributionType(0), help="distribution of contracts within the shards (uniform, binomial, normal, chaos)")
+parser.add_argument('--crossshard', type=float, default=0.5, help="probability a cross-shard call will occur within a transaction")
+parser.add_argument('--collision', type=float, default=0.5, help="probability a transaction will experience a mutated state and cause a reversion of the transaction")
+
+args = parser.parse_args()
 
 class Mempool(list):
 
@@ -53,7 +78,7 @@ def generateRandomTransaction(size):
 	transaction = Transaction()
 	for i in range(size):
 		txnFragmentType =  random.choice([1, 2, 3, 4, 5, 6])
-		shard =  random.randrange(0, constants.SHARD_COUNT, 1)
+		shard =  random.randrange(0, args.shards, 1)
 		txnFragment = TransactionFragment(shard, TransactionFragmentType(txnFragmentType))
 		transaction.append(txnFragment)
 	return transaction
@@ -95,7 +120,7 @@ def outputTransactionLog(transactionLogs, transactionsToLog):
 def onNewShardBlock(shard, block):
 	if(len(beaconChain) <= block.index):
 		for i in range((block.index + 1) - len(beaconChain)):
-			beaconChain.append(list([None] * constants.SHARD_COUNT))
+			beaconChain.append(list([None] * args.shards))
 	beaconChain[block.index][shard] = block
 
 mempool = Mempool()
@@ -108,7 +133,7 @@ transactionLogs = {}
 transactionLogs["lastBlock"] = 0
 
 shards = list()
-for i in range (constants.SHARD_COUNT):
+for i in range (args.shards):
 	_shard = shard.Shard(i, None, onNewShardBlock, beaconChain, mempool)
 	shards.append(_shard)
 
@@ -120,4 +145,3 @@ while(len(mempool) > 0):
 	for transaction in transactionsToLog:
 		logTransaction(transaction, beaconChain, transactionLogs)
 logging.info(outputTransactionLog(transactionLogs, transactionsToLog))
-	
