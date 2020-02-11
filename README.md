@@ -1,5 +1,18 @@
 # Cross Shard Simulation for Ethereum 2.0
 
+## Install Instructions
+
+```
+cd cross-shard-txn-sim 
+python3 -m venv
+pip install -r requirements.txt
+```
+
+## Run Instructions
+```
+python3 script.py
+```
+
 In this simulation we will model the execution of cross shard transactions the Ethereum 2.0 platform using varying sharding strategies.
 The goal of this research is to take Eth1 transactions and execute them within the context of a cross-shard transaction.
 
