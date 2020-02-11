@@ -13,6 +13,28 @@ pip install -r requirements.txt
 python3 script.py
 ```
 
+## Running CLI with parameters
+```
+Ethereum 2.0 Coss-Shard Simulation Commands
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --shards SHARDS       shards to simulate
+  --txns TXNS           number of transactions to simulate
+  --slot SLOT           milliseconds per slot
+  --time TIME           length of time for the simulation to run
+                        (milliseconds). -1 means indefinite execution
+  --receipts RECEIPTS   receipt limit per shard block
+  --dist DIST           distribution of contracts within the shards (uniform,
+                        binomial, normal, chaos)
+  --crossshard CROSSSHARD
+                        probability a cross-shard call will occur within a
+                        transaction
+  --collision COLLISION
+                        probability a transaction will experience a mutated
+                        state and cause a reversion of the transaction
+```
+
 In this simulation we will model the execution of cross shard transactions the Ethereum 2.0 platform using varying sharding strategies.
 The goal of this research is to take Eth1 transactions and execute them within the context of a cross-shard transaction.
 
