@@ -6,19 +6,10 @@ import time
 import shard
 import logging
 import queue
+import constants
 
 format = "%(asctime)s: %(message)s"
 logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
-
-# configuration timing
-SHARD_COUNT = 64
-SLOT_TIME = 6.000 # seconds 
-global_time_offset = 3000 # milliseconds
-MEMPOOL_PROP_MIN = 10 # milliseconds
-MEMPOOL_PROP_MAX = 5000 # milliseconds
-
-# configuration gas costs
-RECEIPT_GAS_COST = 5000
 
 class Mempool(list):
 
@@ -62,7 +53,7 @@ def generateRandomTransaction(size):
 	transaction = Transaction()
 	for i in range(size):
 		txnFragmentType =  random.choice([1, 2, 3, 4, 5, 6])
-		shard =  random.randrange(0, SHARD_COUNT, 1)
+		shard =  random.randrange(0, constants.SHARD_COUNT, 1)
 		txnFragment = TransactionFragment(shard, TransactionFragmentType(txnFragmentType))
 		transaction.append(txnFragment)
 	return transaction
@@ -104,7 +95,7 @@ def outputTransactionLog(transactionLogs, transactionsToLog):
 def onNewShardBlock(shard, block):
 	if(len(beaconChain) <= block.index):
 		for i in range((block.index + 1) - len(beaconChain)):
-			beaconChain.append(list([None] * SHARD_COUNT))
+			beaconChain.append(list([None] * constants.SHARD_COUNT))
 	beaconChain[block.index][shard] = block
 
 mempool = Mempool()
@@ -117,7 +108,7 @@ transactionLogs = {}
 transactionLogs["lastBlock"] = 0
 
 shards = list()
-for i in range (SHARD_COUNT):
+for i in range (constants.SHARD_COUNT):
 	_shard = shard.Shard(i, None, onNewShardBlock, beaconChain, mempool)
 	shards.append(_shard)
 
