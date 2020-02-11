@@ -113,12 +113,10 @@ for i in range (constants.SHARD_COUNT):
 	shards.append(_shard)
 
 while(len(mempool) > 0):
-	# logging.info(mempool.toString())
 	for _shard in shards:
 		_shard.produceShardBlock()
 	for _shard in shards:
 		_shard.commitShardBlock()
-	# logging.info("Beacon Block: %s", len(beaconChain) - 1)
 	for transaction in transactionsToLog:
 		logTransaction(transaction, beaconChain, transactionLogs)
 logging.info(outputTransactionLog(transactionLogs, transactionsToLog))
