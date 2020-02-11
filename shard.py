@@ -1,7 +1,6 @@
 import logging
 import time
-
-RECEIPT_LIMIT = 30
+import constants
 
 format = "%(asctime)s: %(message)s"
 logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
