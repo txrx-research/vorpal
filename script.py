@@ -2,36 +2,35 @@ from enum import Enum
 import random
 
 import threading
-import time
 import shard
 import logging
 import queue
 import constants
 import argparse
+import csv
 
-format = "%(asctime)s: %(message)s"
-logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
+format = "%(message)s"
+logging.basicConfig(format=format, level=logging.INFO)
 
 class DistributionType(Enum):
 	UNIFORM = 0
 	BINOMIAL = 1
 	NORMAL = 2
-	CHAOS = 3
 
 	def getType(string):
 		if(string.lower() == "uniform"): return DistributionType(0)
 		if(string.lower() == "binomial"): return DistributionType(1)
 		if(string.lower() == "normal"): return DistributionType(2)
-		if(string.lower() == "chaos"): return DistributionType(3)
 
 parser = argparse.ArgumentParser(description='Ethereum 2.0 Coss-Shard Simulation Commands')
 parser.add_argument('--shards', type=int, default=64, help="shards to simulate")
-parser.add_argument('--txns', type=int, default=100, help="number of transactions to simulate")
+parser.add_argument('--txs', type=int, default=100, help="number of transactions globally per second to added to mempool")
+parser.add_argument('--txns', type=int, default=100, help="total number of transactions to simulate")
 parser.add_argument('--slot', type=int, default=6000, help="milliseconds per slot")
 parser.add_argument('--time', type=int, default=-1, help="length of time for the simulation to run (milliseconds). -1 means indefinite execution")
 parser.add_argument('--receipts', type=int, default=30, help="receipt limit per shard block")
-parser.add_argument('--dist', type=DistributionType.getType, default=DistributionType(0), help="distribution of contracts within the shards (uniform, binomial, normal, chaos)")
-parser.add_argument('--crossshard', type=float, default=0.5, help="probability a cross-shard call will occur within a transaction")
+parser.add_argument('--dist', type=DistributionType.getType, default=DistributionType(0), help="distribution of contracts within the shards (uniform, binomial, normal)")
+# parser.add_argument('--crossshard', type=float, default=0.5, help="probability a cross-shard call will occur within a transaction")
 parser.add_argument('--collision', type=float, default=0.5, help="probability a transaction will experience a mutated state and cause a reversion of the transaction")
 
 args = parser.parse_args()
@@ -72,7 +71,6 @@ class Transaction(list):
 			if i != len(self) - 1:
 				string = string + "\n"
 		return string
-
 
 def generateRandomTransaction(size):
 	transaction = Transaction()
@@ -123,25 +121,42 @@ def onNewShardBlock(shard, block):
 			beaconChain.append(list([None] * args.shards))
 	beaconChain[block.index][shard] = block
 
-mempool = Mempool()
-randomTransaction = generateRandomTransaction(6)
-mempool.append(randomTransaction)
-transactionsToLog = list()
-transactionsToLog.append(randomTransaction)
+def addTxnToMempool(mempool, txns):
+	txns = int(txns)
+	for i in range(txns):
+		randomTransaction = generateRandomTransaction(6)
+		mempool.append(randomTransaction)
 
-transactionLogs = {}
-transactionLogs["lastBlock"] = 0
+
+mempool = Mempool()
+addTxnToMempool(mempool, (args.slot / 1000)  * args.txs)
 
 shards = list()
 for i in range (args.shards):
-	_shard = shard.Shard(i, None, onNewShardBlock, beaconChain, mempool)
+	_shard = shard.Shard(i, None, onNewShardBlock, beaconChain, mempool, args.receipts)
 	shards.append(_shard)
 
-while(len(mempool) > 0):
+time = args.time
+
+txn_time = 0
+txn_total = len(mempool)
+while(len(mempool) > 0 and (args.time == -1 or time - args.slot > 0)):
 	for _shard in shards:
 		_shard.produceShardBlock()
 	for _shard in shards:
 		_shard.commitShardBlock()
-	for transaction in transactionsToLog:
-		logTransaction(transaction, beaconChain, transactionLogs)
-logging.info(outputTransactionLog(transactionLogs, transactionsToLog))
+	# print("Block: ", len(beaconChain) - 1)
+	# print("Transactions: ", txn_total)
+	# print("Mempool: ", len(mempool))
+	time = time - args.slot
+	txn_time = txn_time + args.slot
+	if txn_total + (args.slot / 1000)  * args.txs < args.txns:
+		txn_to_add = int((args.slot / 1000)  * args.txs)
+		addTxnToMempool(mempool, (args.slot / 1000)  * args.txs)
+		txn_total += txn_to_add
+	else:
+		txn_to_add = (args.txns - txn_total)
+		addTxnToMempool(mempool, txn_to_add)
+		txn_total = txn_total + txn_to_add
+
+print(csv.beacon_chain_to_receipt_per_beacon_block(beaconChain))
