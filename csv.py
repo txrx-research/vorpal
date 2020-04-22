@@ -14,3 +14,14 @@ def beacon_chain_to_receipt_per_beacon_block(beacon_chain):
         if(beacon_block != beacon_chain[len(beacon_chain) - 1]):  string = string + ","
     return string
 
+def config_output(args, time):
+   string = "shards, {0}\n".format(args.shards)
+   string += "tps, {0}\n".format(args.tps)
+   string += "txns, {0}\n".format(args.txns)
+   string += "slot, {0}\n".format(args.slot)
+   string += "time, {0}\n".format(args.time)
+   string += "blocklimit, {0}\n".format(args.blocklimit)
+   string += "dist, {0}\n".format(args.dist)
+   string += "collision, {0}\n".format(args.collision)
+   string += "execution_time, {0}\n".format(time)
+   return string
