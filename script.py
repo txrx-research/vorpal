@@ -13,6 +13,7 @@ import argparse
 import csv
 import time
 import simpy
+from tqdm import tqdm
 
 def main():
 	try:
@@ -34,10 +35,10 @@ def main():
 		parser.add_argument('--shards', type=int, default=64, help="shards to simulate")
 		parser.add_argument('--tps', type=int, default=100, help="number of transactions globally per second to added to mempool")
 		parser.add_argument('--slot', type=float, default=12.0, help="seconds per slot (decimal)")
-		parser.add_argument('--time', type=int, default=-1, help="length of time for the simulation to run (milliseconds). -1 means indefinite execution")
+		parser.add_argument('--time', type=int, default=60, help="length of time for the simulation to run (seconds)")
 		parser.add_argument('--blocklimit', type=int, default=30, help="transactions per shard block limit")
 		parser.add_argument('--dist', type=DistributionType.getType, default=DistributionType(0), help="distribution of contracts within the shards (uniform, binomial, normal)")
-		# parser.add_argument('--crossshard', type=float, default=0.5, help="probability a cross-shard call will occur within a transaction")
+		parser.add_argument('--crossshard', type=float, default=0.01, help="probability a cross-shard call will occur within a transaction")
 		parser.add_argument('--collision', type=float, default=0.01, help="probability a transaction will experience a mutated state and cause a reversion of the transaction")
 
 		args = parser.parse_args()
@@ -92,7 +93,7 @@ def main():
 				transaction.append(txnFragment)
 				
 				choices = [True, False]
-				weights = [1 - 0.25, 0.25]
+				weights = [1 - args.crossshard, args.crossshard]
 				if(numpy.random.choice(choices, p=weights)): break
 			return transaction
 
@@ -144,7 +145,7 @@ def main():
 			receiptQueue.append([])
 			receiptTxnQueue.append([])
 
-		def addTxnToMempool(mempool, transactionLog, queue, txns):
+		def add_transaction_to_mempool(mempool, transactionLog, queue, txns):
 			txns = int(txns)
 			for i in range(txns):
 				randomTransaction = generateRandomTransaction()
@@ -154,21 +155,27 @@ def main():
 
 
 		mempool = {}
-		transactionLog = []
+		transaction_log = []
+		progress_bar = tqdm(total=args.time)
+		progress_bar.desc = "Simulation Running"
+
+		def update_progress_bar(progress_bar, env, tick):
+			while True:
+				yield env.timeout(tick)
+				progress_bar.update(tick)
 
 		def new_slot(env, shard, tick):
 			while True:
 				# before slot
 				yield env.timeout(tick)
+				# after slot
 				shard.produceShardBlock()
 				shard.commitShardBlock()
-
-				# after slot
 		
 		def add_tps(env, mempool, tps):
 			while True:
 				yield env.timeout(1)
-				addTxnToMempool(mempool, transactionLog, queue, tps)
+				add_transaction_to_mempool(mempool, transaction_log, queue, tps)
 				env.total_generated_transactions += tps
 
 		def calc_slot(time, slot_time):
@@ -177,22 +184,25 @@ def main():
 		def output_data(beacon_chain, time_elapsed, transaction_log):
 				print(csv.receipts_per_block(beaconChain))
 				print(csv.transactions_per_block(beaconChain))
-				print(csv.stats(args, time_elapsed, beaconChain, transactionLog, env.total_generated_transactions))
+				print(csv.stats(args, time_elapsed, beaconChain, transaction_log, env.total_generated_transactions))
 				print(csv.config_output(args))
 				
 		env = simpy.Environment()
 		env.total_generated_transactions = 0
+		env.progress = 0
 		env.process(add_tps(env, mempool, args.tps))
 		for i in range (args.shards):
 			shard = Shard(i, None, onNewShardBlock, beaconChain, mempool, args.blocklimit, queue, receiptQueue, receiptTxnQueue, args.collision)
 			env.process(new_slot(env, shard, args.slot))
+		env.process(update_progress_bar(progress_bar, env, 1))
 	
-		env.run(until=500)
-		output_data(beaconChain, (time.time() - start_time), transactionLog)
+		env.run(until=args.time)
+		progress_bar.close()
+		output_data(beaconChain, (time.time() - start_time), transaction_log)
 
 
 	except KeyboardInterrupt:
-		print(csv.receipts_per_block(beaconChain))
+		output_data(beaconChain, (time.time() - start_time), transaction_log)
 	except Exception:
 		traceback.print_exc(file=sys.stdout)
 	sys.exit(0)
