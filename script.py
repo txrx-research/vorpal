@@ -5,16 +5,18 @@ import numpy
 import uuid
 
 import threading
-import shard
+from shard import Shard
 import logging
 import queue
 import constants
 import argparse
 import csv
-import time as Time
+import time
+import simpy
 
 def main():
 	try:
+		txn_total = 0
 		format = "%(message)s"
 		logging.basicConfig(format=format, level=logging.INFO)
 
@@ -31,8 +33,7 @@ def main():
 		parser = argparse.ArgumentParser(description='Ethereum 2.0 Coss-Shard Simulation Commands')
 		parser.add_argument('--shards', type=int, default=64, help="shards to simulate")
 		parser.add_argument('--tps', type=int, default=100, help="number of transactions globally per second to added to mempool")
-		parser.add_argument('--txns', type=int, default=100, help="total number of transactions to simulate")
-		parser.add_argument('--slot', type=int, default=6000, help="milliseconds per slot")
+		parser.add_argument('--slot', type=float, default=12.0, help="seconds per slot (decimal)")
 		parser.add_argument('--time', type=int, default=-1, help="length of time for the simulation to run (milliseconds). -1 means indefinite execution")
 		parser.add_argument('--blocklimit', type=int, default=30, help="transactions per shard block limit")
 		parser.add_argument('--dist', type=DistributionType.getType, default=DistributionType(0), help="distribution of contracts within the shards (uniform, binomial, normal)")
@@ -89,11 +90,11 @@ def main():
 					if shard != transaction[len(transaction) - 1]: break
 				txnFragment = TransactionFragment(shard, TransactionFragmentType(txnFragmentType))
 				transaction.append(txnFragment)
-				if(random.choice([True, False])): break
+				
+				choices = [True, False]
+				weights = [1 - 0.25, 0.25]
+				if(numpy.random.choice(choices, p=weights)): break
 			return transaction
-
-		def isTransactionComplete(transaction, receipts):
-			return receipts[len(receipts) - 1].nextShard == None
 
 		class TransactionLog(list):
 			def __init__(self, transaction):
@@ -132,7 +133,7 @@ def main():
 					beaconChain.append(list([None] * args.shards))
 			beaconChain[block.index][shard] = block
 
-		start_time = Time.time()
+		start_time = time.time()
 
 		# create queue
 		queue = list()
@@ -143,52 +144,55 @@ def main():
 			receiptQueue.append([])
 			receiptTxnQueue.append([])
 
-		def addTxnToMempool(mempool, queue, txns):
+		def addTxnToMempool(mempool, transactionLog, queue, txns):
 			txns = int(txns)
 			for i in range(txns):
 				randomTransaction = generateRandomTransaction()
 				queue[randomTransaction[0].shard].append(randomTransaction)
 				mempool[randomTransaction.id] = randomTransaction
+				transactionLog.append(randomTransaction)
 
 
 		mempool = {}
-		addTxnToMempool(mempool, queue, (args.slot / 1000)  * args.tps)
+		transactionLog = []
 
-		#for transaction in mempool:
-		#	queue[transaction[0].shard].append(transaction)
+		def new_slot(env, shard, tick):
+			while True:
+				# before slot
+				yield env.timeout(tick)
+				shard.produceShardBlock()
+				shard.commitShardBlock()
 
-		shards = list()
+				# after slot
+		
+		def add_tps(env, mempool, tps):
+			while True:
+				yield env.timeout(1)
+				addTxnToMempool(mempool, transactionLog, queue, tps)
+				env.total_generated_transactions += tps
+
+		def calc_slot(time, slot_time):
+			return int(time / slot_time)
+
+		def output_data(beacon_chain, time_elapsed, transaction_log):
+				print(csv.receipts_per_block(beaconChain))
+				print(csv.transactions_per_block(beaconChain))
+				print(csv.stats(args, time_elapsed, beaconChain, transactionLog, env.total_generated_transactions))
+				print(csv.config_output(args))
+				
+		env = simpy.Environment()
+		env.total_generated_transactions = 0
+		env.process(add_tps(env, mempool, args.tps))
 		for i in range (args.shards):
-			_shard = shard.Shard(i, None, onNewShardBlock, beaconChain, mempool, args.blocklimit, queue, receiptQueue, receiptTxnQueue, args.collision)
-			shards.append(_shard)
+			shard = Shard(i, None, onNewShardBlock, beaconChain, mempool, args.blocklimit, queue, receiptQueue, receiptTxnQueue, args.collision)
+			env.process(new_slot(env, shard, args.slot))
+	
+		env.run(until=500)
+		output_data(beaconChain, (time.time() - start_time), transactionLog)
 
-		time = args.time
-
-		txn_time = 0
-		txn_total = len(mempool)
-		while(len(mempool) > 0 and (args.time == -1 or time - args.slot > 0)):
-			for _shard in shards:
-				_shard.produceShardBlock()
-			for _shard in shards:
-				_shard.commitShardBlock()
-			# print("Block: ", len(beaconChain) - 1)
-			# print("Transactions: ", txn_total)
-			# print("Mempool: ", len(mempool))
-			time = time - args.slot
-			txn_time = txn_time + args.slot
-			if txn_total + (args.slot / 1000)  * args.tps < args.txns:
-				txn_to_add = int((args.slot / 1000)  * args.tps)
-				addTxnToMempool(mempool, queue, (args.slot / 1000)  * args.tps)
-				txn_total += txn_to_add
-			else:
-				txn_to_add = (args.txns - txn_total)
-				addTxnToMempool(mempool, queue, txn_to_add)
-				txn_total = txn_total + txn_to_add
-		print(csv.beacon_chain_to_receipt_per_beacon_block(beaconChain))
-		print(csv.config_output(args, Time.time() - start_time))
 
 	except KeyboardInterrupt:
-		print(csv.beacon_chain_to_receipt_per_beacon_block(beaconChain))
+		print(csv.receipts_per_block(beaconChain))
 	except Exception:
 		traceback.print_exc(file=sys.stdout)
 	sys.exit(0)
