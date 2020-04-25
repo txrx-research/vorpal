@@ -54,45 +54,24 @@ def main():
 				string = string + "+++++  End Mempool  +++++\n"
 				return string
 
-		# transaction types
-		class TransactionFragmentType(Enum):
-			PAYMENT_TO_EOA = 1
-			PAYMENT_TO_SHARD = 2
-			PAYMENT_TO_CONTRACT = 3
-			CONTRACT_CALL = 4
-			CONTRACT_DEPLOY = 5
-			EE_DEPLOY = 6
-
-		class TransactionFragment:	
-			def __init__(self, shard, type):
+		class TransactionSegment:	
+			def __init__(self, shard):
 				self.shard = shard
-				self.type = type
 
 		class Transaction(list):
 			def __init__(self):
 				pass
 
-			def toString(self):
-				string = ""
-				string = string + "Transaction Id: {0}\n".format(id(self))
-				for i in range(len(self)):
-					transactionFragment = self[i]
-					string = string + "Shard: {0} Action: {1}".format(transactionFragment.shard, transactionFragment.type)
-					if i != len(self) - 1:
-						string = string + "\n"
-				return string
-
-		def generateRandomTransaction(probability):
+		def generate_random_transaction(shards, probability):
 			transaction = Transaction()
 			transaction.id = uuid.uuid4()
 			while True:
-				txnFragmentType =  random.choice([1, 2, 3, 4, 5, 6])
-				while True:
-					shard =  random.randrange(0, args.shards, 1)
-					if len(transaction) < 1: break
-					if shard != transaction[len(transaction) - 1]: break
-				txnFragment = TransactionFragment(shard, TransactionFragmentType(txnFragmentType))
-				transaction.append(txnFragment)
+				shard = random.randrange(0, shards, 1)
+				if len(transaction) > 1:
+					if shard == transaction[len(transaction) - 1] and shard + 1 < shards: shard += 1
+					elif shard == transaction[len(transaction) - 1] and shard + 1 >= shards: shard -= 1
+				transaction_segment = TransactionSegment(shard)
+				transaction.append(transaction_segment)
 				
 				choices = [True, False]
 				weights = [1 - probability, probability]
@@ -149,7 +128,7 @@ def main():
 
 		def add_transactions_to_mempool(mempool, transactionLog, queue, transactions_size, probability):
 			for i in range(transactions_size):
-				randomTransaction = generateRandomTransaction(probability)
+				randomTransaction = generate_random_transaction(args.shards, probability)
 				queue[randomTransaction[0].shard].append(randomTransaction)
 				mempool[randomTransaction.id] = randomTransaction
 				transactionLog.append(randomTransaction)
