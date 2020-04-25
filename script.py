@@ -35,7 +35,7 @@ def main():
 		parser.add_argument('--shards', type=int, default=64, help="shards to simulate")
 		parser.add_argument('--tps', type=int, default=100, help="number of transactions globally per second to added to mempool")
 		parser.add_argument('--slot', type=float, default=12.0, help="seconds per slot (decimal)")
-		parser.add_argument('--time', type=int, default=60, help="length of time for the simulation to run (seconds)")
+		parser.add_argument('--duration', type=int, default=60, help="duration of time to simulate (seconds)")
 		parser.add_argument('--blocklimit', type=int, default=30, help="transactions per shard block limit")
 		parser.add_argument('--dist', type=DistributionType.getType, default=DistributionType(0), help="distribution of contracts within the shards (uniform, binomial, normal)")
 		parser.add_argument('--crossshard', type=float, default=0.01, help="probability a cross-shard call will occur within a transaction")
@@ -156,7 +156,7 @@ def main():
 
 		mempool = {}
 		transaction_log = []
-		progress_bar = tqdm(total=args.time)
+		progress_bar = tqdm(total=args.duration)
 		progress_bar.desc = "Simulation Running"
 
 		def update_progress_bar(progress_bar, env, tick):
@@ -195,13 +195,13 @@ def main():
 		env = simpy.Environment()
 		env.total_generated_transactions = 0
 		env.progress = 0
-		env.process(add_tps(args.crossshard, args.sweep, args.time, env, mempool, args.tps))
+		env.process(add_tps(args.crossshard, args.sweep, args.duration, env, mempool, args.tps))
 		for i in range (args.shards):
 			shard = Shard(i, None, onNewShardBlock, beaconChain, mempool, args.blocklimit, queue, receiptQueue, receiptTxnQueue, args.collision)
 			env.process(new_slot(env, shard, args.slot))
 		env.process(update_progress_bar(progress_bar, env, 1))
 	
-		env.run(until=args.time)
+		env.run(until=args.duration)
 		progress_bar.close()
 		output_data(beaconChain, (time.time() - start_time), transaction_log)
 
