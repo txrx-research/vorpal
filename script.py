@@ -37,11 +37,12 @@ def main():
 		parser.add_argument('-s', '--slot', type=float, default=12.0, help="seconds per slot (decimal)")
 		parser.add_argument('-d', '--duration', type=int, default=60, help="duration of time to simulate (seconds)")
 		parser.add_argument('-b', '--blocklimit', type=int, default=30, help="transactions per shard block limit")
-		parser.add_argument('-d', '--dist', type=DistributionType.getType, default=DistributionType(0), help="distribution of contracts within the shards (uniform, binomial, normal)")
+		parser.add_argument('-ds', '--dist', type=DistributionType.getType, default=DistributionType(0), help="distribution of contracts within the shards (uniform, binomial, normal)")
 		parser.add_argument('-cs', '--crossshard', type=float, default=0.01, help="probability a cross-shard call will occur within a transaction")
 		parser.add_argument('-c', '--collision', type=float, default=0.01, help="probability a transaction will experience a mutated state and cause a reversion of the transaction")
-		# parser.add_argument('-s', type=bool, default=False, help="sweeps the probability for the test duration (eg: 0.25, 0 -> 0.25)")
-		parser.add_argument('-s', '--sweep', action='store_true', help="sweeps the probability for the test duration (eg: 0.25, 0 -> 0.25)")
+		parser.add_argument('-sw', '--sweep', action='store_true', help="sweeps the probability for the test duration (eg: 0.25, 0 -> 0.25)")
+		parser.add_argument("-o", '--output', type=argparse.FileType('w'), help="path to file for saving output")
+
 		args = parser.parse_args()
 
 		class Mempool(list):
@@ -182,11 +183,11 @@ def main():
 		def calc_slot(time, slot_time):
 			return int(time / slot_time)
 
-		def output_data(beacon_chain, time_elapsed, transaction_log):
-				print(csv.receipts_per_block(beaconChain))
-				print(csv.transactions_per_block(beaconChain))
-				print(csv.stats(args, time_elapsed, beaconChain, transaction_log, env.total_generated_transactions))
-				print(csv.config_output(args))
+		def output_data(file, beacon_chain, time_elapsed, transaction_log):
+			file.write(csv.transaction_segments_per_block(beaconChain))
+			file.write(csv.transactions_per_block(beaconChain))
+			file.write(csv.stats(args, time_elapsed, beaconChain, transaction_log, env.total_generated_transactions))
+			file.write(csv.config(args))
 		
 		def calc_crossshard_probability(probability, duration, now, is_sweep):
 			if is_sweep: return (now / duration) *  probability
@@ -203,11 +204,11 @@ def main():
 	
 		env.run(until=args.duration)
 		progress_bar.close()
-		output_data(beaconChain, (time.time() - start_time), transaction_log)
+		output_data(args.output, beaconChain, (time.time() - start_time), transaction_log)
 
 
 	except KeyboardInterrupt:
-		output_data(beaconChain, (time.time() - start_time), transaction_log)
+		output_data(args.output, beaconChain, (time.time() - start_time), transaction_log)
 	except Exception:
 		traceback.print_exc(file=sys.stdout)
 	sys.exit(0)
