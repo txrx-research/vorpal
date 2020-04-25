@@ -40,7 +40,8 @@ def main():
 		parser.add_argument('--dist', type=DistributionType.getType, default=DistributionType(0), help="distribution of contracts within the shards (uniform, binomial, normal)")
 		parser.add_argument('--crossshard', type=float, default=0.01, help="probability a cross-shard call will occur within a transaction")
 		parser.add_argument('--collision', type=float, default=0.01, help="probability a transaction will experience a mutated state and cause a reversion of the transaction")
-
+		# parser.add_argument('-s', type=bool, default=False, help="sweeps the probability for the test duration (eg: 0.25, 0 -> 0.25)")
+		parser.add_argument('-s', '--sweep', action='store_true', help="sweeps the probability for the test duration (eg: 0.25, 0 -> 0.25)")
 		args = parser.parse_args()
 
 		class Mempool(list):
@@ -80,7 +81,7 @@ def main():
 						string = string + "\n"
 				return string
 
-		def generateRandomTransaction():
+		def generateRandomTransaction(probability):
 			transaction = Transaction()
 			transaction.id = uuid.uuid4()
 			while True:
@@ -93,7 +94,7 @@ def main():
 				transaction.append(txnFragment)
 				
 				choices = [True, False]
-				weights = [1 - args.crossshard, args.crossshard]
+				weights = [1 - probability, probability]
 				if(numpy.random.choice(choices, p=weights)): break
 			return transaction
 
@@ -101,19 +102,19 @@ def main():
 			def __init__(self, transaction):
 				self.transaction = transaction
 
-		def logTransaction(transaction, beaconChain, transactionLogs):
-			log = transactionLogs.get(id(transaction))
+		def logTransaction(transaction, beaconChain, transaction_logs):
+			log = transaction_logs.get(id(transaction))
 			if log == None:
 				log = TransactionLog(transaction)
-			for i in range(transactionLogs.get("lastBlock"), len(beaconChain)):
+			for i in range(transaction_logs.get("lastBlock"), len(beaconChain)):
 				beaconBlock = beaconChain[i]
 				for shardBlock in beaconBlock:
 					if shardBlock != None:
 						for receipt in shardBlock:
 							if receipt.transactionId == id(transaction):
 								log.append(receipt)
-			transactionLogs[id(transaction)] = log
-			transactionLogs["lastBlock"] = len(beaconChain)
+			transaction_logs[id(transaction)] = log
+			transaction_logs["lastBlock"] = len(beaconChain)
 				
 
 		beaconChain = list()
@@ -145,10 +146,9 @@ def main():
 			receiptQueue.append([])
 			receiptTxnQueue.append([])
 
-		def add_transaction_to_mempool(mempool, transactionLog, queue, txns):
-			txns = int(txns)
-			for i in range(txns):
-				randomTransaction = generateRandomTransaction()
+		def add_transactions_to_mempool(mempool, transactionLog, queue, transactions_size, probability):
+			for i in range(transactions_size):
+				randomTransaction = generateRandomTransaction(probability)
 				queue[randomTransaction[0].shard].append(randomTransaction)
 				mempool[randomTransaction.id] = randomTransaction
 				transactionLog.append(randomTransaction)
@@ -161,8 +161,8 @@ def main():
 
 		def update_progress_bar(progress_bar, env, tick):
 			while True:
-				yield env.timeout(tick)
 				progress_bar.update(tick)
+				yield env.timeout(tick)
 
 		def new_slot(env, shard, tick):
 			while True:
@@ -172,10 +172,11 @@ def main():
 				shard.produceShardBlock()
 				shard.commitShardBlock()
 		
-		def add_tps(env, mempool, tps):
+		def add_tps(crossshard, is_sweep, duration, env, mempool, tps):
 			while True:
 				yield env.timeout(1)
-				add_transaction_to_mempool(mempool, transaction_log, queue, tps)
+				probability = calc_crossshard_probability(crossshard, duration, env.now, is_sweep)
+				add_transactions_to_mempool(mempool, transaction_log, queue, tps, probability)
 				env.total_generated_transactions += tps
 
 		def calc_slot(time, slot_time):
@@ -186,11 +187,15 @@ def main():
 				print(csv.transactions_per_block(beaconChain))
 				print(csv.stats(args, time_elapsed, beaconChain, transaction_log, env.total_generated_transactions))
 				print(csv.config_output(args))
+		
+		def calc_crossshard_probability(probability, duration, now, is_sweep):
+			if is_sweep: return (now / duration) *  probability
+			return probability
 				
 		env = simpy.Environment()
 		env.total_generated_transactions = 0
 		env.progress = 0
-		env.process(add_tps(env, mempool, args.tps))
+		env.process(add_tps(args.crossshard, args.sweep, args.time, env, mempool, args.tps))
 		for i in range (args.shards):
 			shard = Shard(i, None, onNewShardBlock, beaconChain, mempool, args.blocklimit, queue, receiptQueue, receiptTxnQueue, args.collision)
 			env.process(new_slot(env, shard, args.slot))
