@@ -26,6 +26,17 @@ def transactions_per_block(beacon_chain):
         if(beacon_block != beacon_chain[len(beacon_chain) - 1]):  string = string + ","
     return string + "\n"
 
+def probability_over_duration(probability, time, calc_crossshard_probability):
+    string_probability = "probability,"
+    string_time = "time (seconds),"
+    for interval in range(time):
+        string_probability += "{0}".format(calc_crossshard_probability(probability, time, interval + 1, True))
+        string_time += str(interval)
+        if interval != range(time)[-1]:
+            string_probability += ","
+            string_time += ","
+    return string_probability + "\n" + string_time + "\n"
+
 def stats(args, time, beacon_chain, transactionsLog, total_generated_transactions):
     string = "execution_time, {0}\n".format(time)
 
