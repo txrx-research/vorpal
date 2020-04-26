@@ -1,6 +1,3 @@
-import logging
-import time
-import constants
 import numpy
 
 class ShardBlock(list):
@@ -8,90 +5,88 @@ class ShardBlock(list):
         self.index = index
 
 class Receipt:
-    def __init__(self, transactionId, shard, sequence, nextShard):
-        self.transactionId = transactionId
+    def __init__(self, transaction_id, shard, sequence, next_shard):
+        self.transaction_id = transaction_id
         self.shard = shard
         self.sequence = sequence
-        self.nextShard = nextShard
+        self.next_shard = next_shard
     
     def toString(self):
-        return "*** Receipt ***\nTransaction Id: {0}\nShard: {1}\nSequence: {2}\nNextShard: {3}\n".format(self.transactionId, self.shard, self.sequence, self.nextShard)
+        return "*** Receipt ***\nTransaction Id: {0}\nShard: {1}\nSequence: {2}\nNextShard: {3}\n".format(self.transaction_id, self.shard, self.sequence, self.next_shard)
 
 class Shard:	
-    def __init__(self, shard, strategy, onNewShardBlock, beaconChain, mempool, txnBlockLimit, queue, receiptQueue, receiptTxnQueue, collision):
+    def __init__(self, shard, on_shard_block, beacon_chain, mempool, blocklimit, queue, receipt_queue, receipt_transaction_queue, collision):
         self.shard = shard
-        self.strategy = strategy
-        self.onNewShardBlock = onNewShardBlock
-        self.beaconChain = beaconChain
+        self.on_shard_block = on_shard_block
+        self.beacon_chain = beacon_chain
         self.mempool = mempool
-        self.nextBlock = ShardBlock(0)
-        self.lastProcessedBlock = 0
-        self.lastBlock = 0
-        self.txnBlockLimit = txnBlockLimit
+        self.next_block = ShardBlock(0)
+        self.last_block = 0
+        self.blocklimit = blocklimit
         self.queue = queue
-        self.receiptQueue = receiptQueue
-        self.receiptTxnQueue = receiptTxnQueue
+        self.receipt_queue = receipt_queue
+        self.receipt_transaction_queue = receipt_transaction_queue
         self.collision = collision
 
-    def processTransactionFromForeignReceipt(self, foreignReceipt, transaction):
-        for i in range(foreignReceipt.sequence, len(transaction)):
-            transactionFragment = transaction[i]
-            if transactionFragment.shard != self.shard:
-                receipt = Receipt(transaction.id, self.shard, i, transactionFragment.shard)
-                self.nextBlock.append(receipt)
-                self.receiptQueue[transactionFragment.shard].append(receipt)
-                self.receiptTxnQueue[transactionFragment.shard].append(transaction)
+    def process_transaction_from_foreign_receipt(self, foreign_receipt, transaction):
+        for i in range(foreign_receipt.sequence, len(transaction)):
+            transaction_segment = transaction[i]
+            if transaction_segment.shard != self.shard:
+                receipt = Receipt(transaction.id, self.shard, i, transaction_segment.shard)
+                self.next_block.append(receipt)
+                self.receipt_queue[transaction_segment.shard].append(receipt)
+                self.receipt_transaction_queue[transaction_segment.shard].append(transaction)
                 return False
             if i == len(transaction) - 1:
-                self.nextBlock.append(Receipt(transaction.id, self.shard,  i, None))
+                self.next_block.append(Receipt(transaction.id, self.shard,  i, None))
                 return True
 
-    def processTransaction(self, transaction):
+    def process_transaction(self, transaction):
         for i in range(len(transaction)):
-            transactionFragment = transaction[i]
-            if transactionFragment.shard != self.shard:
-                receipt = Receipt(transaction.id, self.shard, i, transactionFragment.shard)
-                self.nextBlock.append(receipt)
-                self.receiptQueue[transactionFragment.shard].append(receipt)
-                self.receiptTxnQueue[transactionFragment.shard].append(transaction)
+            transaction_segment = transaction[i]
+            if transaction_segment.shard != self.shard:
+                receipt = Receipt(transaction.id, self.shard, i, transaction_segment.shard)
+                self.next_block.append(receipt)
+                self.receipt_queue[transaction_segment.shard].append(receipt)
+                self.receipt_transaction_queue[transaction_segment.shard].append(transaction)
                 return False
             if i == len(transaction) - 1:
-                self.nextBlock.append(Receipt(transaction.id, self.shard, i, None))
+                self.next_block.append(Receipt(transaction.id, self.shard, i, None))
                 return True
     
-    def processMempoolTransactions(self):
+    def process_mempool_transactions(self):
         for transaction in self.queue[self.shard]:
-            if len(self.nextBlock) < self.txnBlockLimit and transaction[0].shard == self.shard:
-                if self.isCollision():
+            if len(self.next_block) < self.blocklimit and transaction[0].shard == self.shard:
+                if self.is_collision():
                     del self.mempool[transaction.id]
-                elif self.processTransaction(transaction):
+                elif self.process_transaction(transaction):
                     del self.mempool[transaction.id]
                 self.queue[self.shard].remove(transaction)
 
-    def isCollision(self):
+    def is_collision(self):
         choices = [True, False]
         weights = [self.collision, 1 - self.collision]
         return numpy.random.choice(choices, p=weights)
 
-    def processReceiptTransactions(self):
-        for r, receipt in enumerate(self.receiptQueue[self.shard]):
-            if len(self.nextBlock) < self.txnBlockLimit:
-                for t, transaction in enumerate(self.receiptTxnQueue[self.shard]):
-                    if transaction.id == receipt.transactionId:
-                        if self.isCollision():
+    def process_receipt_transactions(self):
+        for r, receipt in enumerate(self.receipt_queue[self.shard]):
+            if len(self.next_block) < self.blocklimit:
+                for t, transaction in enumerate(self.receipt_transaction_queue[self.shard]):
+                    if transaction.id == receipt.transaction_id:
+                        if self.is_collision():
                             del self.mempool[transaction.id]
-                        elif self.processTransactionFromForeignReceipt(receipt, transaction):
+                        elif self.process_transaction_from_foreign_receipt(receipt, transaction):
                             del self.mempool[transaction.id]
-                        del self.receiptQueue[self.shard][r]
-                        del self.receiptTxnQueue[self.shard][t]
+                        del self.receipt_queue[self.shard][r]
+                        del self.receipt_transaction_queue[self.shard][t]
 
     def commitShardBlock(self):
-        self.onNewShardBlock(self.shard, self.nextBlock)
-        self.nextBlock = ShardBlock(self.nextBlock.index + 1)
-        self.lastBlock = self.lastBlock + 1
+        self.on_shard_block(self.beacon_chain, self.shard, self.next_block)
+        self.next_block = ShardBlock(self.next_block.index + 1)
+        self.lastBlock = self.last_block + 1
 
     def produceShardBlock(self):
-        self.processReceiptTransactions()
-        self.processMempoolTransactions()
+        self.process_receipt_transactions()
+        self.process_mempool_transactions()
         
 

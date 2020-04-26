@@ -20,7 +20,7 @@ def transactions_per_block(beacon_chain):
         receipt_total = 0
         for shard_block in beacon_block:
             for receipt in shard_block:
-                if receipt != None and receipt.nextShard == None:
+                if receipt != None and receipt.next_shard == None:
                     receipt_total+=1
         string = string + str(receipt_total)
         if(beacon_block != beacon_chain[len(beacon_chain) - 1]):  string = string + ","
@@ -33,7 +33,7 @@ def stats(args, time, beacon_chain, transactionsLog, total_generated_transaction
     for beacon_block in beacon_chain:
         for shard_block in beacon_block:
             for receipt in shard_block:
-                if receipt != None and receipt.nextShard == None:
+                if receipt != None and receipt.next_shard == None:
                     receipt_total+=1
 
     string += "collision_rate, {0}\n".format(100 - (receipt_total/total_generated_transactions)*100)
@@ -59,7 +59,7 @@ def config(args):
    string += "slot, {0}\n".format(args.slot)
    string += "duration, {0}\n".format(args.duration)
    string += "blocklimit, {0}\n".format(args.blocklimit)
-   string += "dist, {0}\n".format(args.dist)
+#    string += "dist, {0}\n".format(args.dist)
    string += "crossshard, {0}\n".format(args.crossshard)
    string += "collision, {0}\n".format(args.collision)
    string += "sweep, {0}\n".format(args.sweep)
