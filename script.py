@@ -19,7 +19,9 @@ def main():
 		parser.add_argument('-t', '--tps', type=int, default=100, help="number of transactions globally per second to added to mempool")
 		parser.add_argument('-s', '--slot', type=float, default=12.0, help="seconds per slot (decimal)")
 		parser.add_argument('-d', '--duration', type=int, default=60, help="duration of time to simulate (seconds)")
-		parser.add_argument('-b', '--blocklimit', type=int, default=30, help="transactions per shard block limit")
+		parser.add_argument('-b', '--blocksize', type=int, default=512, help="size of shard blocks (kb)")
+		parser.add_argument('-ws', '--witnesssize', type=int, default=256, help="size of Eth1 stateless witness (kb)")
+		parser.add_argument('-css', '--transactionsize', type=int, default=1, help="size of a cross-shard transaction receipt (bytes)")
 		# parser.add_argument('-ds', '--dist', type=DistributionType.getType, default=DistributionType(0), help="distribution of contracts within the shards (uniform, binomial, normal)")
 		parser.add_argument('-cs', '--crossshard', type=float, default=0.01, help="probability a cross-shard call will occur within a transaction")
 		parser.add_argument('-c', '--collision', type=float, default=0.01, help="probability a transaction will experience a mutated state and cause a reversion of the transaction")
@@ -122,8 +124,9 @@ def main():
 		env.total_generated_transactions = 0
 		env.progress = 0
 		env.process(add_tps(args.crossshard, args.sweep, args.duration, env, mempool, args.tps))
+		blocklimit = (args.blocksize - args.witnesssize) * 1000 / args.transactionsize
 		for i in range (args.shards):
-			shard = Shard(i, on_shard_block, beacon_chain, mempool, args.blocklimit, queue, receipt_queue, receipt_transaction_queue, args.collision)
+			shard = Shard(i, on_shard_block, beacon_chain, mempool, blocklimit, queue, receipt_queue, receipt_transaction_queue, args.collision)
 			env.process(new_slot(env, shard, args.slot))
 		env.process(update_progress_bar(progress_bar, env, 1))
 	
