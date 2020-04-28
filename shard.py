@@ -15,7 +15,7 @@ class Receipt:
         return "*** Receipt ***\nTransaction Id: {0}\nShard: {1}\nSequence: {2}\nNextShard: {3}\n".format(self.transaction_id, self.shard, self.sequence, self.next_shard)
 
 class Shard:	
-    def __init__(self, shard, on_shard_block, beacon_chain, mempool, blocklimit, queue, receipt_queue, receipt_transaction_queue, collision):
+    def __init__(self, shard, on_shard_block, beacon_chain, mempool, blocklimit, queue, receipt_queue, receipt_transaction_queue, collision, collision_log):
         self.shard = shard
         self.on_shard_block = on_shard_block
         self.beacon_chain = beacon_chain
@@ -27,6 +27,7 @@ class Shard:
         self.receipt_queue = receipt_queue
         self.receipt_transaction_queue = receipt_transaction_queue
         self.collision = collision
+        self.collision_log = collision_log
 
     def process_transaction_from_foreign_receipt(self, foreign_receipt, transaction):
         for i in range(foreign_receipt.sequence, len(transaction)):
@@ -58,6 +59,7 @@ class Shard:
         for transaction in self.queue[self.shard]:
             if len(self.next_block) < self.blocklimit and transaction[0].shard == self.shard:
                 if self.is_collision():
+                    self.collision_log.append(self.mempool[transaction.id])
                     del self.mempool[transaction.id]
                 elif self.process_transaction(transaction):
                     del self.mempool[transaction.id]
@@ -74,6 +76,7 @@ class Shard:
                 for t, transaction in enumerate(self.receipt_transaction_queue[self.shard]):
                     if transaction.id == receipt.transaction_id:
                         if self.is_collision():
+                            self.collision_log.append(self.mempool[transaction.id])
                             del self.mempool[transaction.id]
                         elif self.process_transaction_from_foreign_receipt(receipt, transaction):
                             del self.mempool[transaction.id]
