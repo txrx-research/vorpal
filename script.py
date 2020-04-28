@@ -13,7 +13,6 @@ from tqdm import tqdm
 
 def main():
 	try:
-
 		parser = argparse.ArgumentParser(description='Ethereum 2.0 Coss-Shard Simulation Commands')
 		parser.add_argument('-sh', '--shards', type=int, default=64, help="shards to simulate")
 		parser.add_argument('-t', '--tps', type=int, default=100, help="number of transactions globally per second to added to mempool")
@@ -64,24 +63,19 @@ def main():
 		# init
 		start_time = time.time()
 		beacon_chain = list()
-		# create queue
-		queue = list()
+		# create mempool
+		mempool = list()
 		receipt_queue = list()
-		receipt_transaction_queue = list()
 		for i in range(args.shards):
-			queue.append([])
+			mempool.append([])
 			receipt_queue.append([])
-			receipt_transaction_queue.append([])
 
-		def add_transactions_to_mempool(mempool, transactionLog, queue, transactions_size, probability):
+		def add_transactions_to_mempool(transaction_log, mempool, transactions_size, probability):
 			for i in range(transactions_size):
 				transaction = generate_random_transaction(args.shards, probability)
-				queue[transaction[0].shard].append(transaction)
-				mempool[transaction.id] = transaction
-				transactionLog.append(transaction)
+				mempool[transaction[0].shard].append(transaction)
+				transaction_log.append(transaction)
 
-
-		mempool = {}
 		transaction_log = []
 		collision_log = []
 		progress_bar = tqdm(total=args.duration)
@@ -100,11 +94,11 @@ def main():
 				shard.produceShardBlock()
 				shard.commitShardBlock()
 		
-		def add_tps(crossshard, is_sweep, duration, env, mempool, tps):
+		def add_tps(crossshard, is_sweep, duration, env, tps):
 			while True:
 				yield env.timeout(1)
 				probability = calc_crossshard_probability(crossshard, duration, env.now, is_sweep)
-				add_transactions_to_mempool(mempool, transaction_log, queue, tps, probability)
+				add_transactions_to_mempool(transaction_log, mempool, tps, probability)
 				env.total_generated_transactions += tps
 
 		def calc_slot(time, slot_time):
@@ -124,10 +118,10 @@ def main():
 		env = simpy.Environment()
 		env.total_generated_transactions = 0
 		env.progress = 0
-		env.process(add_tps(args.crossshard, args.sweep, args.duration, env, mempool, args.tps))
+		env.process(add_tps(args.crossshard, args.sweep, args.duration, env, args.tps))
 		blocklimit = (args.blocksize - args.witnesssize) * 1000 / args.transactionsize
 		for i in range (args.shards):
-			shard = Shard(i, on_shard_block, beacon_chain, mempool, blocklimit, queue, receipt_queue, receipt_transaction_queue, args.collision, collision_log)
+			shard = Shard(i, on_shard_block, beacon_chain, blocklimit, mempool, receipt_queue, args.collision, collision_log)
 			env.process(new_slot(env, shard, args.slot))
 		env.process(update_progress_bar(progress_bar, env, 1))
 	
@@ -144,4 +138,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-# print(numpy.random.binomial(1, (63/64), 1000))
