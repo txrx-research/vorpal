@@ -27,7 +27,7 @@ def transactions_per_block(beacon_chain):
     return string + "\n"
 
 def probability_over_duration(probability, time, calc_crossshard_probability):
-    string_probability = "probability,"
+    string_probability = "\nprobability,"
     string_time = "time (seconds),"
     for interval in range(time):
         string_probability += "{0}".format(calc_crossshard_probability(probability, time, interval + 1, True))
@@ -38,7 +38,7 @@ def probability_over_duration(probability, time, calc_crossshard_probability):
     return string_probability + "\n" + string_time + "\n"
 
 def stats(args, time, beacon_chain, transactionsLog, total_generated_transactions):
-    string = "execution_time, {0}\n".format(time)
+    string = "\nexecution_time, {0}\n".format(time)
 
     receipt_total = 0
     for beacon_block in beacon_chain:
@@ -65,15 +65,8 @@ def stats(args, time, beacon_chain, transactionsLog, total_generated_transaction
     return string
 
 def config(args):
-   string = "shards, {0}\n".format(args.shards)
-   string += "tps, {0}\n".format(args.tps)
-   string += "slot, {0}\n".format(args.slot)
-   string += "duration, {0}\n".format(args.duration)
-   string += "blocklimit, {0}\n".format(args.blocklimit)
-#    string += "dist, {0}\n".format(args.dist)
-   string += "crossshard, {0}\n".format(args.crossshard)
-   string += "collision, {0}\n".format(args.collision)
-   string += "sweep, {0}\n".format(args.sweep)
-   string += "output, {0}\n".format(args.output.name)
+    string = "\n"
+    for arg in vars(args):
+        string += "{0}, {1}\n".format(arg, getattr(args, arg))
    
-   return string
+    return string
