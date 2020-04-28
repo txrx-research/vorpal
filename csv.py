@@ -37,7 +37,7 @@ def probability_over_duration(probability, time, calc_crossshard_probability):
             string_time += ","
     return string_probability + "\n" + string_time + "\n"
 
-def stats(args, time, beacon_chain, transactionsLog, total_generated_transactions):
+def stats(args, time, beacon_chain, transaction_log, total_generated_transactions, collision_log):
     string = "\nexecution_time, {0}\n".format(time)
 
     receipt_total = 0
@@ -47,12 +47,12 @@ def stats(args, time, beacon_chain, transactionsLog, total_generated_transaction
                 if receipt != None and receipt.next_shard == None:
                     receipt_total+=1
 
-    string += "collision_rate, {0}\n".format(100 - (receipt_total/total_generated_transactions)*100)
+    string += "collision_rate, {0}\n".format(len(collision_log) / total_generated_transactions)
 
     shortest_txn = -1
     longest_txn = 0
     transaction_fragment_total = 0
-    for transaction in transactionsLog:
+    for transaction in transaction_log:
         if shortest_txn == -1 or len(transaction) < shortest_txn: shortest_txn = len(transaction)
         if len(transaction) > longest_txn: longest_txn = len(transaction)
         transaction_fragment_total += len(transaction)

@@ -83,6 +83,7 @@ def main():
 
 		mempool = {}
 		transaction_log = []
+		collision_log = []
 		progress_bar = tqdm(total=args.duration)
 		progress_bar.desc = "Simulation Running"
 
@@ -109,11 +110,11 @@ def main():
 		def calc_slot(time, slot_time):
 			return int(time / slot_time)
 
-		def output_data(file, beacon_chain, time_elapsed, transaction_log, env):
+		def output_data(file, beacon_chain, time_elapsed, transaction_log, collision_log, env):
 			file.write(csv.transaction_segments_per_block(beacon_chain))
 			file.write(csv.transactions_per_block(beacon_chain))
 			if args.sweep: file.write(csv.probability_over_duration(args.crossshard, env.now, calc_crossshard_probability))
-			file.write(csv.stats(args, time_elapsed, beacon_chain, transaction_log, env.total_generated_transactions))
+			file.write(csv.stats(args, time_elapsed, beacon_chain, transaction_log, env.total_generated_transactions, collision_log))
 			file.write(csv.config(args))
 		
 		def calc_crossshard_probability(probability, duration, now, is_sweep):
@@ -126,17 +127,17 @@ def main():
 		env.process(add_tps(args.crossshard, args.sweep, args.duration, env, mempool, args.tps))
 		blocklimit = (args.blocksize - args.witnesssize) * 1000 / args.transactionsize
 		for i in range (args.shards):
-			shard = Shard(i, on_shard_block, beacon_chain, mempool, blocklimit, queue, receipt_queue, receipt_transaction_queue, args.collision)
+			shard = Shard(i, on_shard_block, beacon_chain, mempool, blocklimit, queue, receipt_queue, receipt_transaction_queue, args.collision, collision_log)
 			env.process(new_slot(env, shard, args.slot))
 		env.process(update_progress_bar(progress_bar, env, 1))
 	
 		env.run(until=args.duration)
 		progress_bar.close()
-		output_data(args.output, beacon_chain, (time.time() - start_time), transaction_log, env)
+		output_data(args.output, beacon_chain, (time.time() - start_time), transaction_log, collision_log, env)
 
 
 	except KeyboardInterrupt:
-		output_data(args.output, beacon_chain, (time.time() - start_time), transaction_log, env)
+		output_data(args.output, beacon_chain, (time.time() - start_time), transaction_log, collision_log, env)
 	except Exception:
 		traceback.print_exc(file=sys.stdout)
 	sys.exit(0)
