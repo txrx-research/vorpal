@@ -30,7 +30,7 @@ class Shard:
 
     def process_transaction(self, transaction, index):
         transaction_segment = transaction[index]
-        if self.is_collision():
+        if transaction_segment.is_collision:
             self.collision_log.append(transaction)
         else:
             if index == len(transaction) - 1:
@@ -48,11 +48,6 @@ class Shard:
             if len(self.next_block) < self.blocklimit and transaction[0].shard == self.shard:
                 self.process_transaction(transaction, 0)
                 self.mempool[self.shard].remove(transaction)
-
-    def is_collision(self):
-        choices = [True, False]
-        weights = [self.collision, 1 - self.collision]
-        return numpy.random.choice(choices, p=weights)
 
     def process_receipt_transactions(self):
         for r, receipt in enumerate(self.receipt_queue[self.shard]):
