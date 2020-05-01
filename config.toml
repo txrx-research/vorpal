@@ -1,0 +1,13 @@
+[simulation]
+shards = 64
+slot = 12.0 # slot time in seconds
+blocksize = 512 # size of shard blocks in kb
+witnesssize = 256 # size of Eth1 stateless witness in kb
+transactionsize = 1 # size of a cross-shard transaction receipt in bytes
+
+[transactions]
+tps = 100 # transactions per second
+duration = 60 # duration of simulation in seconds
+crossshard = 0.01 # probability a cross-shard call will occur within a transaction
+sweep = false # sweeps the probability for the test duration (eg: 0.25, 0 -> 0.25)
+collision = 0.01 # probability a transaction will experience a mutated state and cause a reversion of the transaction
