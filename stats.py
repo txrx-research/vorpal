@@ -1,3 +1,35 @@
+import matplotlib.pyplot as plt
+
+def transaction_and_segments_per_slot(beacon_chain):
+    transactions = []
+    transaction_segments = []
+    slots = []
+    for beacon_block in beacon_chain:
+        transaction_total = 0
+        transaction_segment_total = 0
+        for shard_block in beacon_block:
+            for receipt in shard_block:
+                if receipt != None and receipt.next_shard == None:
+                    transaction_total+=1
+                transaction_segment_total += 1
+        transactions.append(transaction_total)
+        transaction_segments.append(transaction_segment_total)
+        slots.append(len(slots))
+    return {'slots': slots, 'transactions': transactions, 'transaction segments': transaction_segments}
+
+def create_transaction_and_segments_per_slot_chart(beacon_chain):
+    data = transaction_and_segments_per_slot(beacon_chain)
+    slots = data['slots']
+    transactions = data['transactions']
+    transaction_segments = data['transaction segments']
+    plt.plot(slots, transactions)
+    plt.plot(slots, transaction_segments)
+    plt.axis([min(slots), max(slots), min(transactions), max(transaction_segments)])
+    plt.legend(['transactions', 'transaction segments'], loc='lower right')
+    plt.xlabel('slots')
+    plt.title('Transactions and transaction segments per slot')
+    return plt
+
 def transaction_segments_per_block(beacon_chain):
     string = "slots,"
     for column in range(len(beacon_chain)):

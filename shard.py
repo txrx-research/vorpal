@@ -1,5 +1,18 @@
 import numpy
 
+
+class Gas():
+    def __init__(self, type, details, amount):
+        self.type = type
+        self.details = details
+        self.amount = amount
+
+class Bandwidth():
+    def __init__(self, type, details, size):
+        self.type = type
+        self.details = details
+        self.size = size
+
 class ShardBlock(list):
     def __init__(self, index):
         self.index = index
@@ -12,7 +25,7 @@ class Receipt:
         self.next_shard = next_shard
 
 class Shard:	
-    def __init__(self, shard, on_shard_block, beacon_chain, blocklimit, mempool, receipt_queue, collision, collision_log):
+    def __init__(self, shard, on_shard_block, beacon_chain, blocklimit, mempool, receipt_queue, collision, collision_log, gas, bandwidth):
         self.shard = shard
         self.on_shard_block = on_shard_block
         self.beacon_chain = beacon_chain
@@ -23,6 +36,8 @@ class Shard:
         self.receipt_queue = receipt_queue
         self.collision = collision
         self.collision_log = collision_log
+        self.gas = gas
+        self.bandwidth = bandwidth
 
     def process_transaction_from_foreign_receipt(self, foreign_receipt, transaction):
         index = len(transaction) <= foreign_receipt.sequence + 1 if foreign_receipt.sequence else foreign_receipt.sequence + 1

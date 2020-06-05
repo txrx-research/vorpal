@@ -7,10 +7,11 @@ import pickle
 from hashlib import sha256
 import toml
 import os
+import math
 
 from shard import Shard
 import argparse
-import csv
+import stats
 import time
 import simpy
 from tqdm import tqdm
@@ -23,7 +24,7 @@ class Mempool(list):
 	pass
 
 class TransactionSegment:	
-	def __init__(self, shard, is_collision):
+	def __init__(self, shard, is_collision, size):
 		self.shard = shard
 		self.is_collision = is_collision
 
@@ -68,6 +69,7 @@ def main():
 				choices = [True, False]
 				weights = [1 - probability, probability]
 				if(numpy.random.choice(choices, p=weights)): break
+				probability = probability/2
 			return transaction
 
 		def on_shard_block(beacon_chain, shard, block):
@@ -112,20 +114,23 @@ def main():
 				index = int(env.now / (1/args.tps)) - 1
 				transaction = transaction_set[index]
 				mempool[transaction[0].shard].append(transaction)
-				env.total_generated_transactions += args.crossshard
+				env.total_generated_transactions += 1
+
+		def create_chart(beacon_chain):
+			stats.create_transaction_and_segments_per_slot_chart(beacon_chain).savefig(TRANSACTION_SET_PATH + '/' +  transaction_args_hash() + '.transaction_and_segments_per_slot.png')
 
 		def output_data(beacon_chain, time_elapsed, transaction_log, collision_log, env):
 			data = ""
-			data += csv.transaction_segments_per_block(beacon_chain)
-			data += csv.transactions_per_block(beacon_chain)
-			if args.sweep: data += csv.probability_over_duration(args.crossshard, env.now, calc_crossshard_probability)
-			data += csv.stats(args, time_elapsed, beacon_chain, transaction_log, env.total_generated_transactions, collision_log)
-			data += csv.config(args)
+			data += stats.transaction_segments_per_block(beacon_chain)
+			data += stats.transactions_per_block(beacon_chain)
+			if args.sweep: data += stats.probability_over_duration(args.crossshard, env.now, calc_crossshard_probability)
+			data += stats.stats(args, time_elapsed, beacon_chain, transaction_log, env.total_generated_transactions, collision_log)
+			data += stats.config(args)
 			return data
 
 		def transaction_args():
 			# duration, tps, crossshard, sweep, collision
-			return {"duration": args.duration, "tps": args.tps, "sweep": args.sweep, "collision": args.collision}
+			return {"duration": args.duration, "tps": args.tps, "crossshard": args.crossshard, "sweep": args.sweep, "collision": args.collision}
 
 		def transaction_args_hash():
 			return sha256(str(transaction_args()).encode()).hexdigest()
@@ -138,6 +143,7 @@ def main():
 					for file in name:
 						if file == file_to_open:
 							return True
+			return False
 
 		# init
 		start_time = time.time()
@@ -152,6 +158,8 @@ def main():
 		transaction_log = []
 		transaction_set = []
 		collision_log = []
+		gas = []
+		bandwidth = []
 		has_cached_transactions = has_cached_transactions()
 
 		if args.input == None and not has_cached_transactions:
@@ -159,7 +167,7 @@ def main():
 		else:
 			if(args.input == None):
 				args.input = open(TRANSACTION_SET_PATH + "/" + transaction_args_hash() + ".bin", "rb")
-				print("recovering cached file")
+				print("Recovering cached file")
 
 			transaction_args_pickle = pickle.load(args.input)
 			transaction_set = pickle.load(args.input)
@@ -169,9 +177,9 @@ def main():
 				if arg in transaction_args_pickle:
 					setattr(args, arg, transaction_args_pickle[arg])
 
-		if args.outputtransactions != None or args.generate and not has_cached_transactions:
+		if  not has_cached_transactions:
 			file = args.outputtransactions
-			if args.generate and file == None:
+			if file == None:
 				file = open(TRANSACTION_SET_PATH + "/" + transaction_args_hash() + ".bin", "wb")
 
 			pickle.dump(transaction_args(), file)
@@ -187,20 +195,23 @@ def main():
 			env.process(add_tps(env, transaction_set))
 			blocklimit = (args.blocksize - args.witnesssize) * 1000 / args.transactionsize
 			for i in range (args.shards):
-				shard = Shard(i, on_shard_block, beacon_chain, blocklimit, mempool, receipt_queue, args.collision, collision_log)
+				shard = Shard(i, on_shard_block, beacon_chain, blocklimit, mempool, receipt_queue, args.collision, collision_log, gas, bandwidth)
 				env.process(new_slot(env, shard, args.slot))
 			env.process(update_progress_bar(progress_bar, env, 1))
 
 			env.run(until=args.duration)
 			progress_bar.close()
 			data = output_data(beacon_chain, (time.time() - start_time), transaction_log, collision_log, env)
+			create_chart(beacon_chain)
 			if args.output == None:
-				print(data)
+				file = open(TRANSACTION_SET_PATH + "/" + transaction_args_hash() + ".csv", "w")
+				file.write(data)
 			else:
 				args.output.write(data)
 
 	except KeyboardInterrupt:
 		data = output_data(beacon_chain, (time.time() - start_time), transaction_log, collision_log, env)
+		create_chart(beacon_chain)
 		if args.output == None:
 			print(data)
 		else:
